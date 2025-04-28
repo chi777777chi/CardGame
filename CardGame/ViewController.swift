@@ -8,8 +8,7 @@
 import UIKit
 
 class ViewController: UIViewController {
-    
-    // MARK: - IBOutlets
+
     @IBOutlet var cardButtons: [UIButton]!
     @IBOutlet weak var timerLabel: UILabel!
     @IBOutlet weak var scoreLabel: UILabel!
@@ -17,32 +16,25 @@ class ViewController: UIViewController {
     @IBOutlet weak var highestComboLabel: UILabel!
     @IBOutlet weak var systemMessageLabel: UILabel!
     @IBOutlet weak var stepsLabel: UILabel!
-    
-    // MARK: - Timers
+
     var timer: Timer?
     var secondsElapsed: Int = 0
 
-    // MARK: - Game Setup
     var game: CardGame!
-
-    
 
     let baseEmojis = [
         "🐶", "🐱", "🐭", "🐹", "🐰",
         "🦊", "🐻", "🐼", "🐨", "🐯",
         "🦁", "🐮", "🐷", "🐸", "🐵",
         "💣",
-        "🧹",      // 一張拆彈
-        "🔄"       // 一張重新整理
+        "🧹",
+        "🔄"
     ]
 
-
-    
-    // MARK: - View Life Cycle
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let totalSlots   = cardButtons.count           // 30
+        let totalSlots   = cardButtons.count
         let specialCards = 4
         let pairsToUse   = (totalSlots - specialCards) / 2
 
@@ -54,37 +46,45 @@ class ViewController: UIViewController {
         updateViewFromModel()
     }
     
-
-
-    // MARK: - IBActions
     @IBAction func cardTapped(_ sender: UIButton) {
         if let buttonIndex = cardButtons.firstIndex(of: sender) {
-            // 防止同一張牌點兩次
             if game.flipIndices.contains(buttonIndex) { return }
             
             if game.flipIndices.count < 2 {
                 game.chooseCard(at: buttonIndex)
                 game.flipIndices.append(buttonIndex)
-                updateViewFromModel()
+                
+                if game.flipIndices.count == 1 {
+                    updateViewFromModel()
+                }
                 
                 if game.flipIndices.count == 2 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    updateViewFromModel()
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         let result = self.game.checkMatch(indices: self.game.flipIndices)
+                        let unmatchedIndices = self.game.flipIndices
                         self.game.flipIndices.removeAll()
-                        self.updateViewFromModel()
-                        
+
                         switch result {
                         case .matched:
-
-                            self.checkForWin()
                             self.showSystemMessage("✅ 配對成功")
+                            self.checkForWin()
+                            self.updateViewFromModel()
+
                         case .notMatched:
                             self.showSystemMessage("❌ 配對失敗")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                for index in unmatchedIndices {
+                                    self.game.cards[index].isFaceUp = false
+                                }
+                                self.updateViewFromModel()
+                            }
+
                         case .bomb:
                             self.showSystemMessage("💥 你引爆了炸彈！遊戲結束！")
                             self.gameOverByBomb()
                         }
-	
                     }
                 }
             }
@@ -101,8 +101,7 @@ class ViewController: UIViewController {
         checkForWin()
         updateViewFromModel()
     }
-    
-    // MARK: - Timer Methods
+
     func startTimer() {
         timer = Timer.scheduledTimer(timeInterval: 1.0, target: self, selector: #selector(updateTimer), userInfo: nil, repeats: true)
     }
@@ -111,17 +110,13 @@ class ViewController: UIViewController {
         secondsElapsed += 1
         timerLabel.text = "Time: \(secondsElapsed)s"
     }
-    
 
-    // MARK: - Game Flow Control
     func checkForWin() {
-        if game.normalPairsMatchedCount() >= 15 {
+        if game.allNormalPairsMatched() {
             timer?.invalidate()
             showAlert(title: "恭喜！", message: "你成功完成配對了！🎉\n總用時：\(secondsElapsed)秒")
         }
     }
-    
-
     
     func gameOverByBomb() {
         timer?.invalidate()
@@ -143,9 +138,6 @@ class ViewController: UIViewController {
         updateViewFromModel()
     }
 
-
-    
-    // MARK: - UI Update
     func updateViewFromModel() {
         for index in cardButtons.indices {
             let button = cardButtons[index]
@@ -175,7 +167,7 @@ class ViewController: UIViewController {
         
         if let message = game.latestSystemMessage {
                 showSystemMessage(message)
-                game.latestSystemMessage = nil // 顯示過後清空，不要重複顯示
+                game.latestSystemMessage = nil
             }
     }
     
@@ -189,8 +181,6 @@ class ViewController: UIViewController {
     func showSystemMessage(_ text: String) {
         systemMessageLabel.text = text
         systemMessageLabel.isHidden = false
-        
-        // 讓訊息2秒後自動消失（可選）
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             self.systemMessageLabel.isHidden = true
         }
