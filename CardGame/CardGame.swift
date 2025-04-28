@@ -11,7 +11,9 @@ enum MatchResult {
     case matched
     case notMatched
     case bomb
+    case timeoutBomb
 }
+
 
 class CardGame {
 
@@ -62,15 +64,21 @@ class CardGame {
     func chooseCard(at index: Int) {
         guard !cards[index].isMatched else { return }
 
+        if flipIndices.count == 2 {
+            let first = flipIndices[0]
+            let second = flipIndices[1]
+            if !cards[first].isMatched { cards[first].isFaceUp = false }
+            if !cards[second].isMatched { cards[second].isFaceUp = false }
+            flipIndices.removeAll()
+        }
+
         if !isSecondPhase && isResetCard(card: cards[index]) {
             latestSystemMessage = "🔄 重新整理！"
-
-                indexOfFirstFlippedCard = nil
-                flipIndices.removeAll()
-
-                resetAndShuffleCards()
-                enterSecondPhase()
-                return
+            indexOfFirstFlippedCard = nil
+            flipIndices.removeAll()
+            resetAndShuffleCards()
+            enterSecondPhase()
+            return
         }
 
         if let first = indexOfFirstFlippedCard, first != index {
@@ -83,21 +91,21 @@ class CardGame {
         } else {
             cards[index].isFaceUp = true
             indexOfFirstFlippedCard = index
+            stepsCount += 1
         }
     }
 
-
-
-    
     func checkMatch(indices: [Int]) -> MatchResult {
-        stepsCount += 1
+        guard indices.count == 2 else { return .notMatched }
+
         let firstIndex = indices[0]
         let secondIndex = indices[1]
-        
+
         let firstCard = cards[firstIndex]
         let secondCard = cards[secondIndex]
-        if stepsCount >= 40 && !bombsDefused {
-            return .bomb
+
+        if stepsCount >= 10 && !bombsDefused {
+            return .timeoutBomb
         }
 
         if isDefuseCard(card: firstCard) && isDefuseCard(card: secondCard) {
@@ -124,7 +132,6 @@ class CardGame {
         }
     }
 
-
     func defuseBombs() {
         var replacement: String
 
@@ -148,21 +155,24 @@ class CardGame {
     func enterSecondPhase() {
         isSecondPhase = true
         bombsDefused = false
-        
+        indexOfFirstFlippedCard = nil   
+
         for index in cards.indices {
             if isResetCard(card: cards[index]) {
                 emojiDict[cards[index].id] = "🧹"
             }
         }
     }
+
     func resetAndShuffleCards() {
         for index in cards.indices {
             cards[index].isFaceUp  = false
             cards[index].isMatched = false
         }
         cards.shuffle()
-    }
 
+        indexOfFirstFlippedCard = nil
+    }
 
     func allNormalPairsMatched() -> Bool {
         let normalCards = cards.filter { !isBomb(card: $0) && !isDefuseCard(card: $0) && !isResetCard(card: $0) }

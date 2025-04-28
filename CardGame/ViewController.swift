@@ -47,50 +47,42 @@ class ViewController: UIViewController {
     }
     
     @IBAction func cardTapped(_ sender: UIButton) {
-        if let buttonIndex = cardButtons.firstIndex(of: sender) {
-            if game.flipIndices.contains(buttonIndex) { return }
-            
-            if game.flipIndices.count < 2 {
-                game.chooseCard(at: buttonIndex)
-                game.flipIndices.append(buttonIndex)
-                
-                if game.flipIndices.count == 1 {
-                    updateViewFromModel()
-                }
-                
-                if game.flipIndices.count == 2 {
-                    updateViewFromModel()
+        guard let idx = cardButtons.firstIndex(of: sender) else { return }
+        let tappedResetInFirstPhase = (!game.isSecondPhase &&
+                                       game.isResetCard(card: game.cards[idx]))
+        game.chooseCard(at: idx)
+        if tappedResetInFirstPhase {
+            updateViewFromModel()
+            return
+        }
+        if game.flipIndices.contains(idx) { return }
+        game.flipIndices.append(idx)
 
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        let result = self.game.checkMatch(indices: self.game.flipIndices)
-                        let unmatchedIndices = self.game.flipIndices
-                        self.game.flipIndices.removeAll()
+        if game.flipIndices.count == 1 {
+            updateViewFromModel()
+            return
+        }
 
-                        switch result {
-                        case .matched:
-                            self.showSystemMessage("✅ 配對成功")
-                            self.checkForWin()
-                            self.updateViewFromModel()
+        // 兩張都翻開了
+        updateViewFromModel()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let result = self.game.checkMatch(indices: self.game.flipIndices)
+            self.game.flipIndices.removeAll()
 
-                        case .notMatched:
-                            self.showSystemMessage("❌ 配對失敗")
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                for index in unmatchedIndices {
-                                    self.game.cards[index].isFaceUp = false
-                                }
-                                self.updateViewFromModel()
-                            }
-
-                        case .bomb:
-                            self.showSystemMessage("💥 你引爆了炸彈！遊戲結束！")
-                            self.gameOverByBomb()
-                        }
-                    }
-                }
+            switch result {
+            case .matched:
+                self.showSystemMessage("✅ 配對成功")
+                self.checkForWin()
+            case .notMatched:
+                self.showSystemMessage("❌ 配對失敗")
+            case .bomb, .timeoutBomb:
+                self.showSystemMessage("💥 炸彈引爆了！遊戲結束！")
+                self.gameOverByBomb()
             }
+            self.updateViewFromModel()
         }
     }
-    
+
     @IBAction func flipAllUp(_ sender: UIButton) {
         game.flipAllCardsUp()
         updateViewFromModel()
@@ -120,7 +112,7 @@ class ViewController: UIViewController {
     
     func gameOverByBomb() {
         timer?.invalidate()
-        showAlert(title: "💣 BOOM!", message: "配對到炸彈了！遊戲結束！")
+        showAlert(title: "💣 BOOM!", message: "炸彈引爆了！遊戲結束！")
     }
     
     func restartGame() {
